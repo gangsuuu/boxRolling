@@ -1,12 +1,13 @@
 {
-  "name": "philogrammer",
-  "homepage": "https://gangsuuu.github.io/earth",
+  "name": "boxRolling",
+  "homepage": "https://gangsuuu.github.io/boxRolling",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy" : "gh-pages -d build",
     "preview": "vite preview",
     "lint": "npx eslint src",
     "lint:fix": "npm run lint -- --fix",

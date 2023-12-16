@@ -1,18 +1,9 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { VertexNormalsHelper } from 'three/examples/jsm/helpers/VertexNormalsHelper.js';
-import vertexShader from '../shaders/earth/vertex.glsl?raw';
-import fragmentShader from '../shaders/earth/fragment.glsl?raw';
-import pointsVertexShader from '../shaders/earthPoints/vertex.glsl?raw';
-import pointsFragmentShader from '../shaders/earthPoints/fragment.glsl?raw';
-import glowVertexShader from '../shaders/earthGlow/vertex.glsl?raw';
-import glowFragmentShader from '../shaders/earthGlow/fragment.glsl?raw';
-import CameraControls from '../Controls/CameraControls';
-import Animation from '../Controls/Animation';
-import GUI from 'lil-gui';
-import { gsap } from 'gsap';
-
+import { gsap } from 'gsap'
+import fragmentShader from '../shader/fragmentShader.glsl?raw'
+import vertexShader from '../shader/vertexShader.glsl?raw'
 export default function () {
+  const coments = document.querySelectorAll('.comentWrapper')
   const renderer = new THREE.WebGLRenderer({
     alpha: true,
   });
@@ -21,13 +12,30 @@ export default function () {
   const container = document.querySelector('#container');
 
   container.appendChild(renderer.domElement);
-
+  
   const canvasSize = {
     width: window.innerWidth,
     height: window.innerHeight,
   };
+  const mousePosition = {
+    x: 0,
+    y: 0,
+    dx: 0,
+    dy: 0,
+  }
+  
 
-  const clock = new THREE.Clock();
+  let playing = true;
+  let roundCount = 0 
+  let tl = gsap.timeline()
+  let tl2 = gsap.timeline()
+  let currentNum = 0;
+  let changeNum = 0;
+  let nextMixRatio = 0;
+  let titlesWords = [];
+  let comentLines = [];
+
+  const boxWrapper = new THREE.Group()
   const textureLoader = new THREE.TextureLoader();
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(
@@ -37,159 +45,102 @@ export default function () {
     100
   );
 
-  /** BackGround 
-  const cubeTextureLoader = new THREE.CubeTextureLoader();
-  const environmentMap = cubeTextureLoader.load([
-   'assets/environment/px.png',
-   'assets/environment/nx.png',
-   'assets/environment/py.png',
-   'assets/environment/ny.png',
-   'assets/environment/pz.png',
-   'assets/environment/nz.png'
-  ])
-  environmentMap.encoding = THREE.sRGBEncoding;
-  scene.background = environmentMap;
-  scene.environment = environmentMap;
-*/
 
-  /** library */
-  //const gui = new GUI();
-  
-  /** animation */
-  let introStart = true;
-  const animation = new Animation(introStart,gsap);
-  
-  //introStart = animation.animationIntro();
+
+  /** light */
+  const light = new THREE.AmbientLight( 0xffffff, 1.5 ); // soft white light
+  light.position.set(0,0,0);
+  scene.add( light )
+
+
+
+ /** CreateBox **/
+ const createBox = () =>{
+  // const geometry = new THREE.BoxGeometry(0,0,0)
+  const geometry = new THREE.BoxGeometry(2.3,1,1)
+  const material = new THREE.ShaderMaterial({
+    vertexShader : vertexShader,
+    fragmentShader : fragmentShader,
+    uniforms,
+    side : THREE.DoubleSide
+    })
+  const box = new THREE.Mesh(geometry,material)
+  boxWrapper.add(box);
+
+  scene.add(boxWrapper)
+ }
+
+   
+ /** imageassets **/
+ let images = [
+   textureLoader.load('public/assets/001_worlds.jpg'),
+   textureLoader.load('public/assets/001Team.png'),
+  textureLoader.load('public/assets/002T1LNG.jpg'),
+  textureLoader.load('public/assets/002T1JDG.jpg'),
+  textureLoader.load('public/assets/003FINALS.jpg'),
+  textureLoader.load('public/assets/002T1WBG.jpg'),
+  textureLoader.load('public/assets/004winner2.webp'),
+  textureLoader.load('public/assets/004WInner.jpg'),
+ ]
+ /** uniform **/
+ const uniforms = {
+  u_time: {
+    type: 'f',
+    value: 0.0
+  },
+  u_resolution: {
+    type:'v2',
+    value : new THREE.Vector2(window.innerWidth,Window.innerHeight).multiplyScalar(window.devicePixelRatio),
+  },
+  u_mouse : {
+    type: 'v2',
+    value: new THREE.Vector2(0.0,0.0)
+  },
+  image : {
+    type:'t',
+    value: images[0]
+  },
+  image2 : {
+    type:'t',
+    value: images[1]
+  },
+  transition : {
+    type:'t',
+    value: textureLoader.load('public/assets/noise.jpg')
+  },
+  mixRatio: {value:0.0}
+}
+
+ const createBoxMap = () => {
+  const geometry = new THREE.BoxGeometry(6.5,4,5);
+
+  const texture = textureLoader.load('public/assets/worlds23.webp');
+  texture.center.set(.5, .5);
+  const material = new THREE.MeshPhongMaterial({
+    map : texture,
+    side: THREE.BackSide
+  })
+
+
+  const boxMap = new THREE.Mesh(geometry,material);
+  boxMap.scale.x = -1
+  const group = new THREE.Group()
+
+  group.add(boxMap)
   
 
+  return group
+ }
 
   /** Camera */
-  //camera.position.set(0, 0, 1.9);
-  camera.position.set(0, 0, 0.85);
-
-  /** Controls */
-  const cameraControls = new CameraControls();
-  const orbitControls = () => {
-    const controls = new OrbitControls(camera, renderer.domElement);
-
-    return controls;
-  }
+  camera.position.set(0, 0, 2);
   
-  /** create Earth */
-  const createEarth = () => {
-    const material = new THREE.ShaderMaterial({
-      wireframe: false,
-      uniforms: {
-        uTexture: {
-          value: textureLoader.load('assets/earth-specular-map.png'),
-        },
-      },
-      vertexShader: vertexShader,
-      fragmentShader: fragmentShader,
-      side: THREE.DoubleSide,
-      transparent: true,
-    });
-
-    const geometry = new THREE.SphereGeometry(0.8, 30, 30);
-    const mesh = new THREE.Mesh(geometry, material);
-
-    return mesh;
-  };
-
-  /** create EarthPointe*/
-  const createEarthPoints = () => {
-    const material = new THREE.ShaderMaterial({
-      wireframe: true,
-      uniforms: {
-        uTexture: {
-          value: textureLoader.load('assets/earth-specular-map.png'),
-        },
-        uTime: {
-          value: 0,
-        },
-      },
-      vertexShader: pointsVertexShader,
-      fragmentShader: pointsFragmentShader,
-      side: THREE.DoubleSide,
-      transparent: true,
-      depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    const geometry = new THREE.IcosahedronGeometry(0.8, 30, 30);
-    geometry.rotateY(-Math.PI);
-
-    const mesh = new THREE.Points(geometry, material);
-
-    return mesh;
-  };
-
-  
-  /** create EarthGlow */
-  const createEarthGlow = () => {
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        uZoom: {
-          value: 1,
-        },
-      },
-      vertexShader: glowVertexShader,
-      fragmentShader: glowFragmentShader,
-      side: THREE.BackSide,
-      transparent: true,
-    });
-
-    const geometry = new THREE.SphereGeometry(1, 40, 40);
-    const mesh = new THREE.Mesh(geometry, material);
-
-    return mesh;
-  };
-
-  /** create Galaxis */
-  const createGalaxis = () => {
-    const count  = 10000;
-    const positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++){
-      positions[i] = (Math.random() - 0.5) * 4;
-      positions[i + 1] = (Math.random() - 0.5) * 4;
-      positions[i + 2] = (Math.random() - 0.5) * 4; 
-    }
-    const starsGeometric = new THREE.BufferGeometry();
-    starsGeometric.setAttribute(
-      'position',
-      new THREE.BufferAttribute(positions, 3)
-    )
-    const starsMaterial = new THREE.PointsMaterial({
-      size : Math.random() * 0.007,
-      transparent : true,
-      depthWrite : false,
-      color: '#3f9f8e',
-      alphaMap : textureLoader.load('assets/particle.png'),
-      map: textureLoader.load('assets/particle.png'),
-    })
-    const star = new THREE.Points(starsGeometric, starsMaterial);
-
-    return star
-  }  
-
-
   /** create */
   const create = () => {
-    const earth = createEarth();
-    const earthPoints = createEarthPoints();
-    const earthGlow = createEarthGlow();
-    const stars = createGalaxis()
-    // const glowNormalHelper = new VertexNormalsHelper(earthGlow, 0.1);
-
-    scene.add(earth, earthPoints, earthGlow, stars);
-
-    return {
-      earth,
-      earthPoints,
-      earthGlow,
-      stars
-    };
+    createBox()
+    const boxMap = createBoxMap()
+    scene.add(boxMap);
+    return { boxMap }
   };
 
   const resize = () => {
@@ -203,52 +154,211 @@ export default function () {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   };
 
-  let lastScrollY = 0;
-  let entered = false;
+
   const addEvent = () => {
     window.addEventListener('resize', resize);
     window.addEventListener("scroll", () => {
-      lastScrollY = animation.scrollAnimation(window.scrollY,lastScrollY);
-      animation.enterToContent(camera);
     });
-    window.addEventListener('mousedown', (e) => {
-      console.log('d '+e.clientX)
-      console.log('d ' +e.clientY)
+    window.addEventListener('mousemove', (e) => getPositions(e.clientX,e.clientY))
+    window.addEventListener('wheel', (e) => rotateBox(e))
+    window.addEventListener("mousemove",(e)=>{
+      const vpRatio = window.innerWidth / window.innerHeight
+      uniforms.u_mouse.value.x = (e.offsetX / window.innerWidth) * vpRatio;
+      uniforms.u_mouse.value.y = (e.offsetY / window.innerHeight) * vpRatio;
     })
-    window.addEventListener('mouseup', (e) => {
-      console.log('u '+e.clientX)
-      console.log('u '+e.clientY)
-    })
-  
   };
+
+  const getPositions = (eX,eY) => {
+    mousePosition.x = -(eX - (window.innerWidth/2)) / (window.innerWidth/2)
+    mousePosition.y =  (eY - (window.innerHeight/2)) / (window.innerHeight/2)
+    mousePosition.dx = mousePosition.x * 0.0003
+    mousePosition.dy = mousePosition.y * 0.0003
+  }
+  
+  let comentsLines = []
+  let comentsLine = []
+  const getComents = () =>{
+    for(let i=0; i <  coments.length ;i++){
+        let titlesWords = coments[i].children[0].children[0].innerHTML.split('')
+        for(let j = 0 ; j < titlesWords.length ; j++){
+          let spanTag = document.createElement('span');
+          spanTag.innerHTML = titlesWords[j]
+          coments[i].children[0].children[1].appendChild(spanTag)
+        }
+
+    }
+
+    for(let i=0; i <  coments.length ;i++){
+      for(let j = 0; j < coments[i].children[1].children[0].children.length ; j++){
+        let comentsWords = coments[i].children[1].children[0].children[j].innerHTML.split('')
+        comentsLine.push(comentsWords)
+      }
+      comentsLines.push(comentsLine)
+      comentsLine = []
+    }
+    
+    comentsLines.forEach((comentsP,linesIndex)=>{
+      comentsP.forEach((comentP,lineindex)=>{
+        
+          let pTag = document.createElement('p')
+          for(let i = 0 ; i < comentP.length ; i++){
+            let spanTag = document.createElement('span')
+            spanTag.innerHTML = comentP[i]
+            pTag.appendChild(spanTag)
+          }
+          coments[linesIndex].children[1].children[1].appendChild(pTag);
+        })
+    })
   
 
+    titlesWords  = coments[0].children[0].children[1]
+    comentLines = coments[0].children[1].children[0].children
 
-  const draw = (obj, orbitControl) => {
-    const { earth, earthPoints, earthGlow, stars} = obj;
-    // earth.rotation.x += 0.0005;
-    earth.rotation.y += 0.0005;
-    earth.rotation.x = 0.3;
-    // earthPoints.rotation.x += 0.0005;
-    earthPoints.rotation.y += 0.0005;
-    earthPoints.rotation.x = 0.3;
-    // stars.rotation.x += 0.0007;
-     stars.rotation.y += 0.0007;
+    for(let i = 0 ; i < titlesWords.children.length ; i++){
+     gsap.to(titlesWords.children[i],{
+       duration: 0.8 / coments[0].children[0].children[1].children.length,
+       opacity:1,
+       delay: ( 0.8 / coments[0].children[0].children[1].children.length) * i,
+       onComplete: () =>{
+        if(i == titlesWords.children.length - 1){
+          playing = false
+        }
+       }
+     })
+    }
+    for(let i = 0 ; i < comentLines.length; i++){
+      gsap.fromTo(comentLines[i],{
+        x:-15,
+        opacity:0,
+      },{
+        duration: 0.25 ,
+        x:0,
+        opacity:1,
+        delay:  0.75,
+      })
+    }
+  }
+
+  const textAnimation = ()  =>{
+    let num = currentNum + changeNum
+    
+    for(let i = 0 ; i < titlesWords.children.length ; i++){
+     titlesWords.children[i].style.opacity = 0
+    }
+    for(let i = 0 ; i < comentLines.length ; i++){
+      comentLines[i].style.opacity = 0
+    }
+
+    for(let i = 0 ; i < coments[num].children[0].children[1].children.length ; i++){
+      // console.log(coments[num].children[0].children[1].children[i])
+      gsap.to(coments[num].children[0].children[1].children[i],{
+       duration: 0.8 / coments[num].children[0].children[1].children.length,
+       opacity:1,
+       delay: ( 0.8 / coments[num].children[0].children[1].children.length) * i
+      })
+     }
+     for(let i = 0 ; i < coments[num].children[1].children[0].children.length ; i++){
+      gsap.fromTo(coments[num].children[1].children[0].children[i],{
+        x:-15,
+        y:3,
+        opacity:0,
+      },{
+        duration: 0.25 / coments[num].children[1].children[0].children.length,
+        x:0,
+        y:0,
+        opacity:1,
+        delay:  0.75 + (0.25/coments[num].children[1].children[0].children.length * i),
+      })   
+    }
+     
+    comentLines = coments[num].children[1].children[0].children
+    titlesWords = coments[num].children[0].children[1]
+  }
 
 
+  const rotateBox =  (e) =>{
+    const dir = e.deltaY
+    if(playing == false ){
+      animate(dir)
+      playing = true 
+    }
+  }
+
+  const animate = (dir) =>{
+    if(dir > 0){
+      roundCount++
+      changeNum = 1
+    }else {
+      roundCount--
+      changeNum = -1
+    }
+    if(currentNum+changeNum >= 0 && currentNum+changeNum < images.length){
+      if(nextMixRatio == 0){
+        nextMixRatio++
+        uniforms.image.value = images[currentNum]
+        uniforms.image2.value = images[currentNum + changeNum]
+      }else{
+        nextMixRatio--
+        uniforms.image2.value = images[currentNum]
+        uniforms.image.value = images[currentNum + changeNum]
+      }
+      textAnimation()
+      currentNum = currentNum + changeNum;
+    }
+
+    if((roundCount-2) % 4 == 0){
+      tl.to(boxWrapper.children[0].rotation,{
+        duration: 1,
+        opacity:0,
+        x : Math.PI * (roundCount*.5),
+        onComplete : () =>{
+          playing = false
+        }
+      })
+      tl.to(boxWrapper.children[0].scale,{
+        x: -1,
+        y: -1,
+        duration:.002,
+        delay: .05
+      },"<")
+      tl.to(uniforms.mixRatio,{
+        value : nextMixRatio,
+        duration : .7,
+        ease: "power1.in",
+        onComplete : () =>{
+        } 
+      },'<')
 
 
-    orbitControl.update();
+    }else{
+      boxWrapper.children[0].scale.y = 1
+      boxWrapper.children[0].scale.x = 1
+      tl.to(boxWrapper.children[0].rotation,{
+        duration: 1,
+        x : Math.PI * (roundCount*.5),
+        onComplete : () =>{
+          playing = false
+          
+        }
+      })
+      tl.to(uniforms.mixRatio,{
+        value : nextMixRatio,
+        duration : 0.35,
+        ease: "power1.in",
+        onComplete : () =>{
+        } 
+      },'<')
+    }
+    console.log(playing)
+  }
+
+  const draw = (obj) => {
+    // const {boxWrapper} = obj
     renderer.render(scene, camera);
-    // console.log(orbitControl.getDistance)
-    earthGlow.material.uniforms.uZoom.value = orbitControl.target.distanceTo(
-      orbitControl.object.position
-    );
-
-    earthPoints.material.uniforms.uTime.value = clock.getElapsedTime();
-
     requestAnimationFrame(() => {
-      draw(obj, orbitControl);
+      boxWrapper.rotation.y = mousePosition.x  * 0.6
+      boxWrapper.rotation.x = mousePosition.y * 0.32   
+      draw(obj);
     });
   };
 
@@ -257,10 +367,10 @@ export default function () {
 
   const initialize = () => {
     const obj = create();
-    const orbitControl = orbitControls()
     addEvent();
     resize();
-    draw(obj, orbitControl);
+    getComents()
+    draw(obj);
   };
 
   initialize();
